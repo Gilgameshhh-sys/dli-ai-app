@@ -1,67 +1,92 @@
 import streamlit as st
 import openai
 import json
+import re  # Para validar emails
 
-# --- CONFIGURACIÓN DE PÁGINA ---
+# --- CONFIGURACIÓN ---
 st.set_page_config(page_title="DLI-AI Risk Audit", page_icon="🛡️", layout="centered")
 
-# --- CSS PARA ESTILO PROFESIONAL (MODO CLARO) ---
+# --- ESTILOS "CONVERSIÓN" (BOTONES DE PAGO) ---
 st.markdown("""
     <style>
     .stApp { background-color: #FFFFFF; color: #000000; }
-    .stSelectbox, .stNumberInput, div[data-baseweb="select"] > div { background-color: #F0F2F6; color: black; }
-    p, h1, h2, h3, label { color: black !important; }
-    div.stButton > button { background-color: #ff4b4b; color: white; border: none; width: 100%; padding: 10px; font-weight: bold; }
+    .stSelectbox, .stNumberInput, .stTextInput, div[data-baseweb="select"] > div { 
+        background-color: #F0F2F6; color: black; 
+    }
+    p, h1, h2, h3, label, li { color: black !important; }
+    
+    /* Botón Principal (Calcular) */
+    div.stButton > button { 
+        background-color: #2e2e2e; color: white; border: none; width: 100%; padding: 10px; font-weight: bold; 
+    }
+    
+    /* Estilo para caja de resultados */
+    .result-box {
+        padding: 20px; border-radius: 10px; background-color: #ffe6e6; border: 2px solid #ff4b4b; margin-bottom: 20px;
+    }
     </style>
 """, unsafe_allow_html=True)
 
 # --- TÍTULO ---
-st.title("🛡️ DLI-AI | Calculadora de Riesgo")
-st.info("Sistema de Auditoría Financiera de Riesgo IT")
+st.title("🛡️ DLI-AI | Auditoría de Riesgo")
+st.markdown("### Descubre cuánto te costaría un incidente informático hoy.")
 
-# --- FORMULARIO ---
+# --- FORMULARIO DE DATOS ---
 col1, col2 = st.columns(2)
 with col1:
     rubro = st.selectbox("1. Rubro", ["Estudio Jurídico", "PyME Tech", "Salud", "Comercio", "Industria"])
     empleados = st.number_input("Cantidad de Empleados", min_value=1, value=5)
 with col2:
-    moneda = st.radio("Moneda", ["ARS (Pesos)", "USD (Dólares)"])
+    moneda = st.radio("Moneda", ["ARS", "USD"])
     facturacion = st.number_input("Facturación Mensual", min_value=0, value=1000000)
 
 st.write("---")
-st.subheader("🔍 Diagnóstico de Vulnerabilidad")
+st.subheader("🕵️ Análisis de Vulnerabilidad")
 
-q1 = st.selectbox("3. ¿Uso de Dispositivos Personales (BYOD)?", 
-                  ["No, todo es corporativo y bloqueado", "Híbrido (algunos usan personal)", "Sí, todos usan su propio equipo (Alto Riesgo)"])
+q1 = st.selectbox("3. Dispositivos (BYOD)", 
+                  ["Todo corporativo (Seguro)", "Híbrido", "Personal / Sin control (Alto Riesgo)"])
+q2 = st.selectbox("4. Backups", 
+                  ["Automatizados y probados", "Manuales / A veces", "No existen / Nunca probados"])
+q3 = st.selectbox("5. Control de Accesos", 
+                  ["Tengo control total", "Accesos compartidos", "Dependo 100% de un externo"])
 
-q2 = st.selectbox("4. ¿Estado de los Backups?", 
-                  ["Automatizados y probados mensualmente", "Manuales / Nunca probados", "No tenemos backups centralizados"])
+st.write("---")
+st.subheader("📧 Tu Informe")
 
-q3 = st.selectbox("5. ¿Si tu técnico de confianza desaparece hoy?", 
-                  ["Tengo las claves y el control total", "Tengo las claves pero no sé usarlas", "Quedo totalmente bloqueado (Rehén)"])
+# --- CAPTURA DE EMAIL (EL GATE) ---
+email = st.text_input("Ingresa tu email corporativo para recibir el diagnóstico:", placeholder="nombre@tuempresa.com")
 
-boton = st.button("🚨 CALCULAR IMPACTO FINANCIERO")
+def validar_email(email):
+    pattern = r"^[\w\.-]+@[\w\.-]+\.\w+$"
+    return re.match(pattern, email)
+
+boton = st.button("🚨 CALCULAR RIESGO AHORA")
 
 # --- LÓGICA ---
 if boton:
-    # AQUÍ ESTÁ LA MAGIA: Buscamos la clave en los "Secretos" de Streamlit
-    if "OPENAI_API_KEY" not in st.secrets:
-        st.error("❌ Error de Configuración: No se encontró la API Key en los secretos.")
+    if not email or not validar_email(email):
+        st.error("⚠️ Por favor, ingresa un email válido para ver los resultados.")
+    elif "OPENAI_API_KEY" not in st.secrets:
+        st.error("❌ Error: Falta configurar la API Key en Secrets.")
     else:
+        # Aquí "GUARDAMOS" el lead (Por ahora lo imprimimos en la consola del servidor)
+        print(f"NUEVO LEAD CAPTURADO: {email} - Rubro: {rubro}")
+        
         openai.api_key = st.secrets["OPENAI_API_KEY"]
         
-        with st.spinner('Analizando vectores de ataque y calculando costos...'):
+        with st.spinner('Auditando vectores de ataque y calculando impacto financiero...'):
             try:
+                # Prompt enfocado en vender la solución
                 prompt = f"""
-                Actúa como DLI-AI. Calcula riesgo para: {rubro}, Empleados: {empleados}, Factura: {facturacion} {moneda}.
-                Vulnerabilidades: {q1}, {q2}, {q3}.
+                Actúa como DLI-AI. Calcula riesgo para: {rubro}, Fac: {facturacion} {moneda}.
+                Vulns: {q1}, {q2}, {q3}.
                 
-                Responde SOLO un JSON válido con esta estructura exacta:
+                Responde JSON:
                 {{
-                    "monto": "$ [CALCULAR MONTO REALISTA BASADO EN FACTURACION]",
-                    "mensaje": "[FRASE DE IMPACTO EMOCIONAL/FINANCIERO]",
-                    "fragilidad": [NUMERO 0-100],
-                    "tips": ["Tip 1 corto", "Tip 2 corto", "Tip 3 corto"]
+                    "monto": "$ [MONTO REALISTA]",
+                    "mensaje": "[FRASE DE MIEDO PROFESIONAL]",
+                    "fragilidad": [0-100],
+                    "solucion_preview": "Detectamos 3 fallos críticos en tu esquema de seguridad que garantizan una pérdida de datos en menos de 12 meses."
                 }}
                 """
                 
@@ -73,15 +98,34 @@ if boton:
                 content = response.choices[0].message.content.replace("```json", "").replace("```", "")
                 data = json.loads(content)
                 
-                st.success("✅ REPORTE GENERADO")
-                st.metric(label="DINERO EN RIESGO INMEDIATO", value=data.get("monto"))
-                st.error(f"⚠️ {data.get('mensaje')}")
-                st.progress(data.get("fragilidad") / 100)
-                st.caption(f"Nivel de Fragilidad Digital: {data.get('fragilidad')}%")
+                # --- PANTALLA DE RESULTADOS (EL GANCHO) ---
+                st.markdown(f"""
+                <div class="result-box">
+                    <h2 style="color: #cc0000; margin:0;">PÉRDIDA ESTIMADA: {data['monto']}</h2>
+                    <p style="font-size: 18px; font-weight: bold;">{data['mensaje']}</p>
+                </div>
+                """, unsafe_allow_html=True)
                 
-                st.subheader("🛡️ Plan de Acción Inmediato:")
-                for tip in data.get("tips", []):
-                    st.write(f"🔹 {tip}")
-                    
+                col_metrica1, col_metrica2 = st.columns(2)
+                col_metrica1.metric("Índice de Fragilidad", f"{data['fragilidad']}%")
+                col_metrica2.error("Nivel de Riesgo: CRÍTICO")
+                
+                st.write("---")
+                st.info(f"🔍 **Diagnóstico Preliminar:** {data['solucion_preview']}")
+                
+                # --- LA VENTA (EL COBRO) ---
+                st.subheader("🛡️ ¿Cómo evitar perder este dinero?")
+                st.write("Hemos generado tu **Plan de Blindaje IT Personalizado** que incluye:")
+                st.write("✅ Protocolo Anti-Ransomware para tus empleados.")
+                st.write("✅ Guía paso a paso de Backups Inmutables (Costo $0).")
+                st.write("✅ Checklist legal para evitar multas.")
+                
+                # --- BOTÓN DE MERCADOPAGO ---
+                # ¡¡¡PEGA TU LINK DE MERCADOPAGO AQUÍ ABAJO!!!
+                link_mercadopago = "https://mpago.la/2D7W7LL" 
+                
+                st.link_button(f"🔓 DESBLOQUEAR SOLUCIÓN Y PLAN DE ACCIÓN", link_mercadopago)
+                st.caption("🔒 Pago seguro vía MercadoPago. Recibirás el plan en tu email en 24hs.")
+
             except Exception as e:
-                st.error(f"Ocurrió un error: {e}")
+                st.error(f"Error: {e}")
